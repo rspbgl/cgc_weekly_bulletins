@@ -7,6 +7,10 @@ on:
     branches:
       - main
 
+# Grant write permissions to commit files back to the repository
+permissions:
+  contents: write
+
 jobs:
   build-booklet:
     # Avoid infinite trigger loops from bot commits
@@ -36,5 +40,11 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add booklet/*.pdf
-          git commit -m "Automated Booklet Generation [skip ci]" || exit 0
-          git push
+          
+          # Only commit and push if files were actually changed/added
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Automated Booklet Generation [skip ci]"
+            git push
+          fi
