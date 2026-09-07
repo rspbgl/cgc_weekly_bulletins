@@ -37,7 +37,7 @@ jobs:
         run: |
           LATEST_PDF=$(ls -1t bulletins/*.pdf | head -n 1)
           echo "Latest PDF found: $LATEST_PDF"
-          sed -i "s|bulletins/LATEST_BULLETIN.pdf|${LATEST_PDF}|g" index.html
+          sed -i -E "s|bulletins/[^\"]+\.pdf|${LATEST_PDF}|g" index.html
 
       - name: Commit and Push Changes
         run: |
