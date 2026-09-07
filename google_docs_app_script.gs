@@ -13,7 +13,7 @@ function onOpen() {
   DocumentApp.getUi()
     .createMenu('Church Bulletin')
     .addItem('Export Active Tab to GitHub', 'exportActiveTabToGitHub')
-    .addItem('Email Active Tab as PDF', 'emailActiveTabToMe') // 
+    .addItem('Email Active Tab as PDF', 'emailActiveTabToMe')
     .addToUi();
 }
 
@@ -103,11 +103,47 @@ function exportActiveTabToGitHub() {
  * Extracts elements from a single tab and generates a standalone PDF
  */
 function createPdfFromTab(tab, tabName) {
-  const tabBody = tab.asDocumentTab().getBody();
+  const tabDoc = tab.asDocumentTab();
+  const tabBody = tabDoc.getBody();
   
   const tempDoc = DocumentApp.create(`Temp_${tabName}`);
   const tempBody = tempDoc.getBody();
   
+  // 1. Copy Footer if present in source tab
+  const footer = tabDoc.getFooter();
+  if (footer) {
+    const tempFooter = tempDoc.addFooter();
+    const footerChildren = footer.getNumChildren();
+    for (let i = 0; i < footerChildren; i++) {
+      const child = footer.getChild(i).copy();
+      const type = child.getType();
+      
+      if (type === DocumentApp.ElementType.PARAGRAPH) {
+        tempFooter.appendParagraph(child.asParagraph());
+      } else if (type === DocumentApp.ElementType.TABLE) {
+        tempFooter.appendTable(child.asTable());
+      } else if (type === DocumentApp.ElementType.LIST_ITEM) {
+        tempFooter.appendListItem(child.asListItem());
+      }
+    }
+    if (tempFooter.getNumChildren() > 1 && tempFooter.getChild(0).asText().getText() === "") {
+      tempFooter.removeChild(tempFooter.getChild(0));
+    }
+    
+    // WORKAROUND: Find all FOOTER_SECTION elements in doc parent and clear first-page footer if present
+    const docParent = tempBody.getParent();
+    for (let i = 0; i < docParent.getNumChildren(); i++) {
+      const child = docParent.getChild(i);
+      if (child.getType() === DocumentApp.ElementType.FOOTER_SECTION) {
+        // If there are multiple footer sections, the first one corresponds to Page 1
+        if (i > 0 && docParent.getChild(i - 1).getType() === DocumentApp.ElementType.FOOTER_SECTION) {
+          child.asFooterSection().clear();
+        }
+      }
+    }
+  }
+
+  // 2. Copy Body elements
   const numChildren = tabBody.getNumChildren();
   for (let i = 0; i < numChildren; i++) {
     const child = tabBody.getChild(i).copy();
@@ -127,6 +163,16 @@ function createPdfFromTab(tab, tabName) {
   }
   
   tempDoc.saveAndClose();
+
+const docId = tempDoc.getId();
+Docs.Documents.batchUpdate({
+  requests: [{
+    updateDocumentStyle: {
+      documentStyle: { useFirstPageHeaderFooter: true },
+      fields: 'useFirstPageHeaderFooter'
+    }
+  }]
+}, docId);
   
   const tempFile = DriveApp.getFileById(tempDoc.getId());
   const pdfBlob = tempFile.getAs('application/pdf').setName(`${tabName}.pdf`);
