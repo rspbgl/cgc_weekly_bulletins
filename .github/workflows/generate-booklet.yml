@@ -1,4 +1,4 @@
-name: Generate Print-Ready Booklet PDF
+name: Generate Print-Ready Booklet PDF & Update Web Page
 
 on:
   push:
@@ -7,13 +7,11 @@ on:
     branches:
       - main
 
-# Grant write permissions to commit files back to the repository
 permissions:
   contents: write
 
 jobs:
   build-booklet:
-    # Avoid infinite trigger loops from bot commits
     if: "!contains(github.event.head_commit.message, 'Automated Booklet Generation')"
     runs-on: ubuntu-latest
 
@@ -35,16 +33,21 @@ jobs:
         run: |
           python .github/scripts/convert_to_booklet.py
 
-      - name: Commit and Push Booklet to booklet/ Folder
+      - name: Update index.html with Latest Bulletin Path
+        run: |
+          LATEST_PDF=$(ls -1t bulletins/*.pdf | head -n 1)
+          echo "Latest PDF found: $LATEST_PDF"
+          sed -i "s|bulletins/LATEST_BULLETIN.pdf|${LATEST_PDF}|g" index.html
+
+      - name: Commit and Push Changes
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add booklet/*.pdf
+          git add booklet/*.pdf index.html
           
-          # Only commit and push if files were actually changed/added
           if git diff --staged --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "Automated Booklet Generation [skip ci]"
+            git commit -m "Automated Booklet Generation & Site Update [skip ci]"
             git push
           fi
