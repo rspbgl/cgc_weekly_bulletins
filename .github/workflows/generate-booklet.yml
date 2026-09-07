@@ -33,17 +33,33 @@ jobs:
         run: |
           python .github/scripts/convert_to_booklet.py
 
-      - name: Update index.html with Latest Bulletin Path
+      - name: Update Latest Bulletin Manifest
         run: |
-          LATEST_PDF=$(ls -1t bulletins/*.pdf | head -n 1)
+          LATEST_PDF=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" -- 'bulletins/*.pdf' | head -n 1)
+          if [ -z "$LATEST_PDF" ]; then
+            LATEST_PDF=$(git log -1 --name-only --pretty=format: -- 'bulletins/*.pdf' | grep -E '^bulletins/.*\.pdf$' | head -n 1)
+          fi
+          if [ -z "$LATEST_PDF" ]; then
+            echo "No bulletin PDF found in this push."
+            exit 1
+          fi
+          export LATEST_PDF
           echo "Latest PDF found: $LATEST_PDF"
-          sed -i -E "s|bulletins/[^\"]+\.pdf|${LATEST_PDF}|g" index.html
+          python - <<'PY'
+          import json
+          import os
+
+          latest_pdf = os.environ["LATEST_PDF"]
+          with open("latest-bulletin.json", "w", encoding="utf-8") as manifest:
+              json.dump({"path": latest_pdf}, manifest, indent=2)
+              manifest.write("\n")
+          PY
 
       - name: Commit and Push Changes
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add booklet/*.pdf index.html
+          git add booklet/*.pdf latest-bulletin.json
           
           if git diff --staged --quiet; then
             echo "No changes to commit."

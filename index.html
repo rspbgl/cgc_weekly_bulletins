@@ -8,12 +8,47 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
     iframe { width: 100%; height: 100%; border: none; }
+    .status {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+      text-align: center;
+      color: #333;
+      background: #fff;
+    }
+    .status a { color: #0645ad; }
   </style>
 </head>
 <body>
-  <iframe 
-    src="https://docs.google.com/viewer?url=https://rspbgl.github.io/cgc_weekly_bulletins/bulletins/Bulletin_6th_Sept_2026.pdf&embedded=true" 
-    title="Church Bulletin PDF">
-  </iframe>
+  <div id="status" class="status">Loading latest bulletin...</div>
+  <iframe id="bulletin-frame" title="Church Bulletin PDF" hidden></iframe>
+  <script>
+    async function loadLatestBulletin() {
+      const status = document.getElementById('status');
+      const frame = document.getElementById('bulletin-frame');
+
+      try {
+        const response = await fetch('latest-bulletin.json', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Could not load latest-bulletin.json (${response.status})`);
+
+        const latest = await response.json();
+        if (!latest.path) throw new Error('latest-bulletin.json does not contain a path');
+
+        const encodedPath = latest.path.split('/').map(encodeURIComponent).join('/');
+        const pdfUrl = new URL(encodedPath, window.location.href).href;
+        const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}&embedded=true`;
+
+        frame.src = viewerUrl;
+        frame.hidden = false;
+        status.hidden = true;
+      } catch (error) {
+        status.innerHTML = `Unable to load the latest bulletin.<br><small>${error.message}</small>`;
+      }
+    }
+
+    loadLatestBulletin();
+  </script>
 </body> 
 </html>
