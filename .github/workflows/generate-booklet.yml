@@ -1,6 +1,7 @@
 name: Generate Print-Ready Booklet PDF & Update Web Page
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'bulletins/*.pdf'
@@ -18,6 +19,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -35,30 +38,17 @@ jobs:
 
       - name: Update Latest Bulletin Manifest
         run: |
-          python - <<'PY'
-          import json
-          import os
-          import sys
-
-          with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as event_file:
-              event = json.load(event_file)
-
-          changed_pdfs = []
-          for commit in event.get("commits", []):
-              for key in ("added", "modified"):
-                  for file_path in commit.get(key, []):
-                      if file_path.startswith("bulletins/") and file_path.lower().endswith(".pdf"):
-                          changed_pdfs.append(file_path)
-
-          if not changed_pdfs:
-              sys.exit("No bulletin PDF found in this push.")
-
-          latest_pdf = changed_pdfs[-1]
-          print(f"Latest PDF found: {latest_pdf}")
-          with open("latest-bulletin.json", "w", encoding="utf-8") as manifest:
-              json.dump({"path": latest_pdf}, manifest, indent=2)
-              manifest.write("\n")
-          PY
+          LATEST_PDF=$(git show --name-only --pretty=format: "$GITHUB_SHA" -- 'bulletins/*.pdf' | grep -E '^bulletins/.*\.pdf$' | tail -n 1)
+          if [ -z "$LATEST_PDF" ]; then
+            LATEST_PDF=$(find bulletins -maxdepth 1 -name '*.pdf' -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)
+          fi
+          if [ -z "$LATEST_PDF" ]; then
+            echo "No bulletin PDF found."
+            exit 1
+          fi
+          export LATEST_PDF
+          echo "Latest PDF found: $LATEST_PDF"
+          python -c "import json, os; open('latest-bulletin.json', 'w', encoding='utf-8').write(json.dumps({'path': os.environ['LATEST_PDF']}, indent=2) + '\n')"
 
       - name: Commit and Push Changes
         run: |
