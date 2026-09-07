@@ -35,21 +35,26 @@ jobs:
 
       - name: Update Latest Bulletin Manifest
         run: |
-          LATEST_PDF=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" -- 'bulletins/*.pdf' | head -n 1)
-          if [ -z "$LATEST_PDF" ]; then
-            LATEST_PDF=$(git log -1 --name-only --pretty=format: -- 'bulletins/*.pdf' | grep -E '^bulletins/.*\.pdf$' | head -n 1)
-          fi
-          if [ -z "$LATEST_PDF" ]; then
-            echo "No bulletin PDF found in this push."
-            exit 1
-          fi
-          export LATEST_PDF
-          echo "Latest PDF found: $LATEST_PDF"
           python - <<'PY'
           import json
           import os
+          import sys
 
-          latest_pdf = os.environ["LATEST_PDF"]
+          with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as event_file:
+              event = json.load(event_file)
+
+          changed_pdfs = []
+          for commit in event.get("commits", []):
+              for key in ("added", "modified"):
+                  for file_path in commit.get(key, []):
+                      if file_path.startswith("bulletins/") and file_path.lower().endswith(".pdf"):
+                          changed_pdfs.append(file_path)
+
+          if not changed_pdfs:
+              sys.exit("No bulletin PDF found in this push.")
+
+          latest_pdf = changed_pdfs[-1]
+          print(f"Latest PDF found: {latest_pdf}")
           with open("latest-bulletin.json", "w", encoding="utf-8") as manifest:
               json.dump({"path": latest_pdf}, manifest, indent=2)
               manifest.write("\n")
