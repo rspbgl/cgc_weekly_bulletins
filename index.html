@@ -35,9 +35,7 @@
 
         const encodedPath = latest.path.split('/').map(encodeURIComponent).join('/');
         const pdfUrl = new URL(encodedPath, window.location.href).href;
-        const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}`;
-
-        window.location.replace(viewerUrl);
+        window.location.replace(pdfUrl);
       } catch (error) {
         status.innerHTML = `Unable to load the latest bulletin.<br><small>${error.message}</small>`;
       }
